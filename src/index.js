@@ -44,6 +44,10 @@ program
     `Path and content string that can be used in replacing folders, files and their content. Make sure it doesn't include any special characters.`
   )
   .option('--skipGitStatusCheck', 'Skip git repo status check')
+  .option(
+    '-e, --exclude [value]',
+    'Comma-separated list of filenames to exclude from renaming operations'
+  )
   .action(async newName => {
     validateCreation();
     validateGitRepo();
@@ -60,6 +64,7 @@ program
     const newBundleID = options.bundleID;
     const newIosBundleID = options.iosBundleID;
     const newAndroidBundleID = options.androidBundleID;
+    const excludeList = options.exclude ? options.exclude.split(',').map(item => item.trim()) : [];
 
     if (pathContentStr) {
       validateNewPathContentStr(pathContentStr);
@@ -83,21 +88,23 @@ program
     const newPathContentStr = pathContentStr || newName;
     const currentAndroidBundleID = getAndroidCurrentBundleID();
 
-    await renameIosFoldersAndFiles(newPathContentStr);
+    await renameIosFoldersAndFiles(newPathContentStr, excludeList);
     await updateIosFilesContent({
       currentName: currentIosName,
       newName,
       currentPathContentStr,
       newPathContentStr,
       newBundleID: newIosBundleID || newBundleID,
+      excludeList,
     });
 
-    await updateIosNameInInfoPlist(newName);
+    await updateIosNameInInfoPlist(newName, excludeList);
 
     if (newAndroidBundleID || newBundleID) {
       await renameAndroidBundleIDFolders({
         currentBundleIDAsPath: bundleIDToPath(currentAndroidBundleID),
         newBundleIDAsPath: bundleIDToPath(newAndroidBundleID || newBundleID),
+        excludeList,
       });
     }
 
@@ -107,6 +114,7 @@ program
       newBundleIDAsPath: bundleIDToPath(
         newAndroidBundleID || newBundleID || currentAndroidBundleID
       ),
+      excludeList,
     });
 
     if (newAndroidBundleID || newBundleID) {
@@ -115,10 +123,11 @@ program
         newBundleID: newAndroidBundleID || newBundleID,
         currentBundleIDAsPath: bundleIDToPath(currentAndroidBundleID),
         newBundleIDAsPath: bundleIDToPath(newAndroidBundleID || newBundleID),
+        excludeList,
       });
     }
 
-    await updateAndroidNameInStringsXml(newName);
+    await updateAndroidNameInStringsXml(newName, excludeList);
     await updateOtherFilesContent({
       newName,
       currentPathContentStr,
@@ -126,6 +135,7 @@ program
       currentIosName,
       newAndroidBundleID: newAndroidBundleID || newBundleID,
       newIosBundleID: newIosBundleID || newBundleID,
+      excludeList,
     });
 
     cleanBuilds();

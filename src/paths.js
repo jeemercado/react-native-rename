@@ -2,12 +2,16 @@ import { cleanString, encodeXmlEntities } from './utils';
 
 export const androidManifestXml = 'android/app/src/main/AndroidManifest.xml';
 export const androidValuesStrings = 'android/app/src/main/res/values/strings.xml';
+export const androidDevValuesStrings = 'android/app/src/dev/res/values/strings.xml';
+export const androidProductionValuesStrings = 'android/app/src/production/res/values/strings.xml';
 export const androidJava = 'android/app/src/*/java';
 export const iosXcodeproj = 'ios/*.xcodeproj';
 export const iosPbxProject = 'ios/*.xcodeproj/project.pbxproj';
 export const iosInfoPlist = 'ios/*/Info.plist';
 export const appJson = 'app.json';
 export const packageJson = 'package.json';
+export const fastlaneFile = 'fastlane/Fastfile';
+export const mainTsxFile = 'src/main.tsx';
 export const buildPaths = [
   'ios/build/*',
   'android/.gradle/*',
@@ -213,7 +217,16 @@ export const getAndroidUpdateFilesContentOptions = ({
       from: currentName,
       to: newName,
     },
-    // Update *_appmodules name
+    {
+      files: androidDevValuesStrings,
+      from: [/<string name="app_name">(.*)<\/string>/g],
+      to: `<string name="app_name">${newName}</string>`,
+    },
+    {
+      files: androidProductionValuesStrings,
+      from: [/<string name="app_name">(.*)<\/string>/g],
+      to: `<string name="app_name">${newName}</string>`,
+    },
     {
       files: `android/app/src/main/java/${newBundleIDAsPath}/newarchitecture/modules/MainApplicationTurboModuleManagerDelegate.java`,
       from: /SoLoader\.loadLibrary\("(.*)"\)/g,
@@ -260,6 +273,7 @@ export const getAndroidUpdateBundleIDOptions = ({
         `android/app/src/main/java/${newBundleIDAsPath}/MainApplication.java`,
         `android/app/src/main/java/${newBundleIDAsPath}/MainActivity.kt`,
         `android/app/src/main/java/${newBundleIDAsPath}/MainApplication.kt`,
+        `android/app/src/androidTest/java/${newBundleIDAsPath}/DetoxTest.java`,
       ],
       from: new RegExp(`${currentBundleID}`, 'g'),
       to: newBundleID,
@@ -317,6 +331,16 @@ export const getOtherUpdateFilesContentOptions = ({
       files: 'package.json',
       from: [new RegExp(`${packageJsonName}`, 'gi'), new RegExp(`${currentPathContentStr}`, 'gi')],
       to: cleanNewPathContentStr,
+    },
+    {
+      files: fastlaneFile,
+      from: [/app_name\s*=\s*["'](.*)["']/g],
+      to: `app_name = "${newName}"`,
+    },
+    {
+      files: mainTsxFile,
+      from: [new RegExp(`\\b${currentName}\\b`, 'g'), new RegExp(`\\b'${currentName}'\\b`, 'g')],
+      to: `name: "${newName}"`,
     },
     {
       files: 'app.json',

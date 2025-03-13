@@ -11,8 +11,10 @@ import checkForUpdate from 'update-check';
 
 import pjson from '../package.json';
 import {
+  androidDevValuesStrings,
   androidJava,
   androidManifestXml,
+  androidProductionValuesStrings,
   androidValuesStrings,
   appJson,
   buildPaths,
@@ -233,9 +235,19 @@ const renameFoldersAndFiles = async ({
   newPath: newPathParam,
   createNewPathFirst = false,
   shellMoveCurrentPathGlobEnd = '',
+  excludeList = [],
 }) => {
   const promises = foldersAndFilesPaths.map(async (filePath, index) => {
     await delay(index * PROMISE_DELAY);
+
+    // Check if the file should be excluded
+    const fileName = filePath.split('/').pop();
+    if (excludeList.some(excludeItem => fileName.includes(excludeItem))) {
+      console.log(toRelativePath(filePath), chalk.yellow('EXCLUDED'));
+
+      return;
+    }
+
     const currentPath = path.join(APP_PATH, filePath);
     const newPath = path.join(APP_PATH, filePath.replace(currentPathParam, newPathParam));
 
@@ -270,7 +282,7 @@ const renameFoldersAndFiles = async ({
   await Promise.all(promises);
 };
 
-export const renameIosFoldersAndFiles = async newPathContentStr => {
+export const renameIosFoldersAndFiles = async (newPathContentStr, excludeList = []) => {
   const currentPathContentStr = getIosXcodeProjectPathName();
   const foldersAndFilesPaths = getIosFoldersAndFilesPaths({
     currentPathContentStr,
@@ -281,21 +293,45 @@ export const renameIosFoldersAndFiles = async newPathContentStr => {
     foldersAndFilesPaths,
     currentPath: cleanString(currentPathContentStr),
     newPath: cleanString(newPathContentStr),
+    excludeList,
   });
 };
 
-export const updateFilesContent = async filesContentOptions => {
+export const updateFilesContent = async (filesContentOptions, excludeList = []) => {
   const promises = filesContentOptions.map(async (option, index) => {
     await delay(index * PROMISE_DELAY);
 
     const isOptionFilesString = typeof option.files === 'string';
+
+    // If it's a string, check if it should be excluded
+    if (isOptionFilesString) {
+      const fileName = option.files.split('/').pop();
+      if (excludeList.some(excludeItem => fileName.includes(excludeItem))) {
+        console.log(toRelativePath(option.files), chalk.yellow('EXCLUDED'));
+
+        return;
+      }
+    }
+
     const updatedOption = {
       ...option,
       countMatches: true,
       allowEmptyPaths: true,
       files: isOptionFilesString
         ? path.join(APP_PATH, option.files)
-        : option.files.map(file => path.join(APP_PATH, file)),
+        : option.files
+            .filter(file => {
+              // Check if any file in the array should be excluded
+              const fileName = file.split('/').pop();
+              if (excludeList.some(excludeItem => fileName.includes(excludeItem))) {
+                console.log(toRelativePath(file), chalk.yellow('EXCLUDED'));
+
+                return false;
+              }
+
+              return true;
+            })
+            .map(file => path.join(APP_PATH, file)),
     };
 
     try {
@@ -326,6 +362,7 @@ export const updateIosFilesContent = async ({
   currentPathContentStr,
   newPathContentStr,
   newBundleID,
+  excludeList = [],
 }) => {
   const filesContentOptions = getIosUpdateFilesContentOptions({
     currentName,
@@ -334,10 +371,18 @@ export const updateIosFilesContent = async ({
     newPathContentStr,
     newBundleID,
   });
-  await updateFilesContent(filesContentOptions);
+  await updateFilesContent(filesContentOptions, excludeList);
 };
 
-const updateElementInXml = async ({ filepath, selector, text }) => {
+const updateElementInXml = async ({ filepath, selector, text, excludeList = [] }) => {
+  // Check if the file should be excluded
+  const fileName = filepath.split('/').pop();
+  if (excludeList.some(excludeItem => fileName.includes(excludeItem))) {
+    console.log(toRelativePath(filepath), chalk.yellow('EXCLUDED'));
+
+    return;
+  }
+
   const $ = cheerio.load(fs.readFileSync(filepath, 'utf8'), {
     xmlMode: true,
     decodeEntities: false,
@@ -349,25 +394,58 @@ const updateElementInXml = async ({ filepath, selector, text }) => {
   console.log(toRelativePath(filepath), chalk.green('UPDATED'));
 };
 
-export const updateIosNameInInfoPlist = async newName => {
-  await updateElementInXml({
-    filepath: globbySync(normalizePath(path.join(APP_PATH, iosInfoPlist)))[0],
-    selector: 'dict > key:contains("CFBundleDisplayName") + string',
-    text: newName,
-  });
+export const updateIosNameInInfoPlist = async (newName, excludeList = []) => {
+  const infoPlists = globbySync(normalizePath(path.join(APP_PATH, iosInfoPlist)));
+
+  for (const infoPath of infoPlists) {
+    await updateElementInXml({
+      filepath: infoPath,
+      selector: 'dict > key:contains("CFBundleDisplayName") + string',
+      text: newName,
+      excludeList,
+    });
+  }
 };
 
-export const updateAndroidNameInStringsXml = async newName => {
+export const updateAndroidNameInStringsXml = async (newName, excludeList = []) => {
+  // Update main strings.xml
   await updateElementInXml({
     filepath: androidValuesStringsFullPath,
     selector: 'resources > string[name="app_name"]',
     text: newName,
+    excludeList,
   });
+
+  // Update dev strings.xml if it exists
+  const androidDevValuesStringsFullPath = path.join(APP_PATH, androidDevValuesStrings);
+  if (fs.existsSync(androidDevValuesStringsFullPath)) {
+    await updateElementInXml({
+      filepath: androidDevValuesStringsFullPath,
+      selector: 'resources > string[name="app_name"]',
+      text: newName,
+      excludeList,
+    });
+  }
+
+  // Update production strings.xml if it exists
+  const androidProductionValuesStringsFullPath = path.join(
+    APP_PATH,
+    androidProductionValuesStrings
+  );
+  if (fs.existsSync(androidProductionValuesStringsFullPath)) {
+    await updateElementInXml({
+      filepath: androidProductionValuesStringsFullPath,
+      selector: 'resources > string[name="app_name"]',
+      text: newName,
+      excludeList,
+    });
+  }
 };
 
 export const renameAndroidBundleIDFolders = async ({
   currentBundleIDAsPath,
   newBundleIDAsPath,
+  excludeList = [],
 }) => {
   const currentBundleIDFoldersRelativePaths = globbySync(
     normalizePath(path.join(APP_PATH, `${androidJava}`)),
@@ -380,17 +458,23 @@ export const renameAndroidBundleIDFolders = async ({
     newPath: newBundleIDAsPath,
     createNewPathFirst: true,
     shellMoveCurrentPathGlobEnd: '/*',
+    excludeList,
   });
 };
 
-export const updateAndroidFilesContent = async ({ currentName, newName, newBundleIDAsPath }) => {
+export const updateAndroidFilesContent = async ({
+  currentName,
+  newName,
+  newBundleIDAsPath,
+  excludeList = [],
+}) => {
   const filesContentOptions = getAndroidUpdateFilesContentOptions({
     currentName,
     newName,
     newBundleIDAsPath,
   });
 
-  await updateFilesContent(filesContentOptions);
+  await updateFilesContent(filesContentOptions, excludeList);
 };
 
 export const updateAndroidFilesContentBundleID = async ({
@@ -398,6 +482,7 @@ export const updateAndroidFilesContentBundleID = async ({
   newBundleID,
   currentBundleIDAsPath,
   newBundleIDAsPath,
+  excludeList = [],
 }) => {
   const filesContentOptions = getAndroidUpdateBundleIDOptions({
     currentBundleID,
@@ -406,7 +491,7 @@ export const updateAndroidFilesContentBundleID = async ({
     newBundleIDAsPath,
   });
 
-  await updateFilesContent(filesContentOptions);
+  await updateFilesContent(filesContentOptions, excludeList);
 };
 
 const getJsonContent = jsonFile => {
@@ -420,6 +505,7 @@ export const updateOtherFilesContent = async ({
   currentIosName,
   newAndroidBundleID,
   newIosBundleID,
+  excludeList = [],
 }) => {
   const appJsonContent = getJsonContent(appJson);
   const packageJsonContent = getJsonContent(packageJson);
@@ -436,7 +522,7 @@ export const updateOtherFilesContent = async ({
     newIosBundleID,
   });
 
-  await updateFilesContent(filesContentOptions);
+  await updateFilesContent(filesContentOptions, excludeList);
 };
 
 export const cleanBuilds = () => {
