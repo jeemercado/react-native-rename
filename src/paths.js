@@ -340,7 +340,7 @@ export const getOtherUpdateFilesContentOptions = ({
     {
       files: mainTsxFile,
       from: [new RegExp(`\\b${currentName}\\b`, 'g'), new RegExp(`\\b'${currentName}'\\b`, 'g')],
-      to: `name: "${newName}"`,
+      to: newName,
     },
     {
       files: 'app.json',
