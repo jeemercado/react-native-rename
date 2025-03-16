@@ -1,14 +1,14 @@
 {
   "name": "nx-react-native-rename",
-  "version": "3.2.16",
+  "version": "3.2.17",
   "description": "Rename react-native app with just one command",
   "main": "lib/index.js",
   "scripts": {
     "test": "jest",
     "dev": "esbuild src/index.js --platform=node --bundle --outdir=lib --external:shelljs --watch",
     "build": "esbuild src/index.js --platform=node --bundle --outdir=lib --external:shelljs --minify --analyze",
-    "prepublish": "npm run build",
-    "relink": "npm unlink react-native-rename && npm run prepublish && npm link",
+    "prepublishOnly": "npm run build",
+    "relink": "npm unlink react-native-rename && npm run prepublishOnly && npm link",
     "format": "prettier --write 'src/*.{js,jsx}'",
     "lint": "eslint 'src/*.{js,jsx}'"
   },
@@ -22,10 +22,6 @@
       "npm run format",
       "npm run lint --fix"
     ]
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/junedomingo/react-native-rename.git"
   },
   "keywords": [
     "react-native",
@@ -44,10 +40,14 @@
   "bin": {
     "react-native-rename": "lib/index.js"
   },
-  "bugs": {
-    "url": "https://github.com/junedomingo/react-native-rename/issues"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeemercado/react-native-rename.git"
   },
-  "homepage": "https://github.com/junedomingo/react-native-rename#readme",
+  "bugs": {
+    "url": "https://github.com/jeemercado/react-native-rename/issues"
+  },
+  "homepage": "https://github.com/jeemercado/react-native-rename#readme",
   "devDependencies": {
     "esbuild": "^0.19.2",
     "eslint": "^8.47.0",
